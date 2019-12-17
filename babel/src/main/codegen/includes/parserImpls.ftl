@@ -96,3 +96,19 @@ void InfixCast(List<Object> list, ExprContext exprContext, Span s) :
         list.add(dt);
     }
 }
+
+/** Parses the prefix "~" bitnot operator used in Mysql, POSTGRESQL. */
+void BitNot(List<Object> list, ExprContext exprContext, SqlParserPos pos) :
+{
+}
+{
+    <TILDE>
+    {
+        checkNonQueryExpression(exprContext);
+        list.add(
+            new SqlParserUtil.ToTreeListItem(SqlLibraryOperators.BITNOT,
+                pos));
+    }
+}
+
+// End parserImpls.ftl

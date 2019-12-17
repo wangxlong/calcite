@@ -255,4 +255,12 @@ public class BabelParserTest extends SqlParserTest {
         + "FROM (VALUES (ROW(1, 2))) AS `TBL` (`X`, `Y`)";
     sql(sql).ok(expected);
   }
+
+  @Test public void testParseBitNot() {
+    final String sql = "select ~2 from t";
+    final String expected = "SELECT (~ 2)\n"
+        + "FROM `T`";
+    sql(sql).ok(expected);
+  }
+
 }

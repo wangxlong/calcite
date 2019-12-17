@@ -97,4 +97,15 @@ public class BabelTest {
           is(sqlType));
     }
   }
+
+  @Test public void testBitNot() throws SQLException {
+    final String sql = "SELECT ~(x+1) FROM (VALUES(10)) AS T(x)";
+    try (Connection connection = connect(useLibraryList("mysql"));
+         Statement statement = connection.createStatement();
+         ResultSet resultSet = statement.executeQuery(sql)) {
+      if (resultSet.next()) {
+        assertThat("Invalid value", resultSet.getInt(1), is(~11));
+      }
+    }
+  }
 }

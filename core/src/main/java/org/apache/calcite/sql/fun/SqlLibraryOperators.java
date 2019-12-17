@@ -349,4 +349,7 @@ public abstract class SqlLibraryOperators {
   public static final SqlOperator INFIX_CAST =
       new SqlCastOperator();
 
+  @LibraryOperator(libraries = {POSTGRESQL, MYSQL})
+  public static final SqlOperator BITNOT =
+      new SqlBitNotOperator();
 }

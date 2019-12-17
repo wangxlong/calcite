@@ -3219,6 +3219,10 @@ void Expression2b(ExprContext exprContext, List<Object> list) :
 }
 {
     (
+        <#list parser.extraPrefixExpressions as extra >
+            ${extra}(list, exprContext, getPos())
+        |
+        </#list>
         LOOKAHEAD(1)
         op = PrefixRowOperator() {
             checkNonQueryExpression(exprContext);
@@ -7505,6 +7509,9 @@ void NonReservedKeyWord2of3() :
 |   < CARET: "^" >
 |   < DOLLAR: "$" >
 <#list parser.binaryOperatorsTokens as operator>
+|   ${operator}
+</#list>
+<#list parser.prefixOperatorsTokens as operator>
 |   ${operator}
 </#list>
 }

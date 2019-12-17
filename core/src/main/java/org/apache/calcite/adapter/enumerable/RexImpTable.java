@@ -51,6 +51,7 @@ import org.apache.calcite.sql.SqlMatchFunction;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlJsonArrayAggAggFunction;
 import org.apache.calcite.sql.fun.SqlJsonObjectAggAggFunction;
+import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.fun.SqlTrimFunction;
 import org.apache.calcite.sql.type.SqlTypeName;
@@ -91,6 +92,7 @@ import static org.apache.calcite.linq4j.tree.ExpressionType.Multiply;
 import static org.apache.calcite.linq4j.tree.ExpressionType.Negate;
 import static org.apache.calcite.linq4j.tree.ExpressionType.Not;
 import static org.apache.calcite.linq4j.tree.ExpressionType.NotEqual;
+import static org.apache.calcite.linq4j.tree.ExpressionType.OnesComplement;
 import static org.apache.calcite.linq4j.tree.ExpressionType.OrElse;
 import static org.apache.calcite.linq4j.tree.ExpressionType.Subtract;
 import static org.apache.calcite.linq4j.tree.ExpressionType.UnaryPlus;
@@ -400,6 +402,9 @@ public class RexImpTable {
     defineMethod(TRUNCATE, "struncate", NullPolicy.STRICT);
 
     map.put(PI, (translator, call, nullAs) -> Expressions.constant(Math.PI));
+
+    // bit
+    defineUnary(SqlLibraryOperators.BITNOT, OnesComplement, NullPolicy.STRICT);
 
     // datetime
     defineImplementor(DATETIME_PLUS, NullPolicy.STRICT,

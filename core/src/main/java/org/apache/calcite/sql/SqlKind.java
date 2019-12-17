@@ -767,6 +767,11 @@ public enum SqlKind {
   JDBC_FN,
 
   /**
+   * The "BITNOT" function(SQL Server, MySQL, PostgreSQL)
+   */
+  BITNOT,
+
+  /**
    * The MULTISET value constructor.
    */
   MULTISET_VALUE_CONSTRUCTOR,
