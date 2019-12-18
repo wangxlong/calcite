@@ -23,6 +23,7 @@ import org.apache.calcite.sql.SqlFunctionCategory;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.SqlOperatorTable;
+import org.apache.calcite.sql.SqlPrefixOperator;
 import org.apache.calcite.sql.type.OperandTypes;
 import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlOperandCountRanges;
@@ -349,7 +350,13 @@ public abstract class SqlLibraryOperators {
   public static final SqlOperator INFIX_CAST =
       new SqlCastOperator();
 
+  /**
+   * Defines the <code>BITNOT</code> prefix operator
+   * <p>Only INTEGER types are supported:
+   * tinyint, smallint, int, bigint
+   */
   @LibraryOperator(libraries = {POSTGRESQL, MYSQL})
   public static final SqlOperator BITNOT =
-      new SqlBitNotOperator();
+      new SqlPrefixOperator("~", SqlKind.BITNOT, 0, ReturnTypes.ARG0_NULLABLE_IF_EMPTY,
+          null, OperandTypes.INTEGER);
 }
