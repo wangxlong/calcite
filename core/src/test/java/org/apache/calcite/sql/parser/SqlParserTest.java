@@ -585,13 +585,6 @@ public class SqlParserTest {
     return new TesterImpl();
   }
 
-  @Deprecated // to be removed before 1.23
-  protected void check(
-      String sql,
-      String expected) {
-    sql(sql).ok(expected);
-  }
-
   protected Sql sql(String sql) {
     return new Sql(sql, false, null, parser -> { });
   }
@@ -630,32 +623,6 @@ public class SqlParserTest {
     final SqlParser.Config config =
         transform.apply(configBuilder).build();
     return SqlParser.create(source, config);
-  }
-
-  @Deprecated // to be removed before 1.23
-  protected void checkExp(
-      String sql,
-      String expected) {
-    expr(sql).ok(expected);
-  }
-
-  @Deprecated // to be removed before 1.23
-  protected void checkExpSame(String sql) {
-    expr(sql).same();
-  }
-
-  @Deprecated // to be removed before 1.23
-  protected void checkFails(
-      String sql,
-      String expectedMsgPattern) {
-    sql(sql).fails(expectedMsgPattern);
-  }
-
-  @Deprecated // to be removed before 1.23
-  protected void checkExpFails0(
-      String sql,
-      String expectedMsgPattern) {
-    expr(sql).fails(expectedMsgPattern);
   }
 
   /** Returns a {@link Matcher} that succeeds if the given {@link SqlNode} is a
@@ -2172,6 +2139,12 @@ public class SqlParserTest {
             + "FROM `DEPT`))");
   }
 
+  @Test public void testSomeEveryAndIntersectionAggQuery() {
+    sql("select some(deptno = 10), every(deptno > 0), intersection(multiset[1,2]) from dept")
+        .ok("SELECT SOME((`DEPTNO` = 10)), EVERY((`DEPTNO` > 0)), INTERSECTION((MULTISET[1, 2]))\n"
+            + "FROM `DEPT`");
+  }
+
   /**
    * Tricky for the parser - looks like "IN (scalar, scalar)" but isn't.
    */
@@ -2217,11 +2190,15 @@ public class SqlParserTest {
 
     final String sql3 = "select * from emp\n"
         + "where name like (select ^some^ name from emp)";
-    sql(sql3).fails("(?s).*Encountered \"some\" at .*");
+    sql(sql3).fails("(?s).*Encountered \"some name\" at .*");
 
     final String sql4 = "select * from emp\n"
-        + "where name ^like^ some (select name from emp)";
-    sql(sql4).fails("(?s).*Encountered \"like some\" at .*");
+        + "where name like some (select name from emp)";
+    final String expected4 = "SELECT *\n"
+        + "FROM `EMP`\n"
+        + "WHERE (`NAME` LIKE SOME((SELECT `NAME`\n"
+        +  "FROM `EMP`)))";
+    sql(sql4).ok(expected4);
 
     final String sql5 = "select * from emp where empno = any (10,20)";
     final String expected5 = "SELECT *\n"
@@ -7451,7 +7428,7 @@ public class SqlParserTest {
     sql(in).ok(out);
 
     // Verify that we can override with an explicit escape character
-    sql(in.replaceAll("\\\\", "!") + "UESCAPE '!'").ok(out);
+    sql(in.replace("\\", "!") + "UESCAPE '!'").ok(out);
   }
 
   @Test public void testIllegalUnicodeEscape() {

@@ -21,6 +21,7 @@ import org.apache.calcite.plan.RelOptListener;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelOptRuleOperand;
 import org.apache.calcite.plan.RelOptRuleOperandChildPolicy;
+import org.apache.calcite.plan.SubstitutionRule;
 import org.apache.calcite.rel.RelNode;
 
 import com.google.common.collect.ImmutableList;
@@ -121,6 +122,26 @@ public class VolcanoRuleCall extends RelOptRuleCall {
                 this,
                 true);
         volcanoPlanner.listener.ruleProductionSucceeded(event);
+      }
+
+      for (int i = 0; i < rels.length; i++) {
+        if (rel == rels[i]) {
+          if (i == 0) {
+            return;
+          }
+          volcanoPlanner.setImportance(rels[0], 0d);
+          break;
+        }
+
+        final RelNode relCopy = rel;
+        if (rels[i].getInputs().stream().anyMatch(n -> n == relCopy)) {
+          volcanoPlanner.setImportance(rels[0], 0d);
+          break;
+        }
+      }
+
+      if (this.getRule() instanceof SubstitutionRule) {
+        volcanoPlanner.setImportance(rels[0], 0d);
       }
 
       // Registering the root relational expression implicitly registers

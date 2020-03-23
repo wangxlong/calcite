@@ -2550,4 +2550,36 @@ public class RexProgramTest extends RexProgramTestBase {
         ImmutableList.of(gt(ref, literal(1)), le(ref, literal(5))));
     checkSimplifyFilter(gt(ref, literal(9)), relOptPredicateList, "false");
   }
+
+  @Test public void testSimplifyNotEqual() {
+    RexNode ref = input(tInt(), 0);
+    RelOptPredicateList relOptPredicateList = RelOptPredicateList.of(rexBuilder,
+        ImmutableList.of(eq(ref, literal(9))));
+    checkSimplifyFilter(ne(ref, literal(9)), relOptPredicateList, "false");
+    checkSimplifyFilter(ne(ref, literal(5)), relOptPredicateList, "true");
+
+    ref = input(tInt(true), 0);
+    checkSimplifyFilter(ne(ref, literal(9)), relOptPredicateList,
+        "AND(null, IS NULL($0))");
+    checkSimplifyFilter(ne(ref, literal(5)), relOptPredicateList,
+        "OR(null, IS NOT NULL($0))");
+  }
+
+  @Test public void testSimplifyNonDeterministicFunction() {
+    final SqlOperator ndc = new SqlSpecialOperator(
+        "NDC",
+        SqlKind.OTHER_FUNCTION,
+        0,
+        false,
+        ReturnTypes.BOOLEAN,
+        null, null) {
+      @Override public boolean isDeterministic() {
+        return false;
+      }
+    };
+    final RexNode call1 = rexBuilder.makeCall(ndc);
+    final RexNode call2 = rexBuilder.makeCall(ndc);
+    final RexNode expr = eq(call1, call2);
+    checkSimplifyUnchanged(expr);
+  }
 }

@@ -47,7 +47,6 @@ import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.core.RelFactories;
 import org.apache.calcite.rel.core.Sample;
 import org.apache.calcite.rel.core.Sort;
-import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.core.Uncollect;
 import org.apache.calcite.rel.core.Values;
 import org.apache.calcite.rel.hint.HintStrategyTable;
@@ -2490,9 +2489,8 @@ public class SqlToRelConverter {
     // convert inner query, could be a table name or a derived table
     SqlNode expr = snapshot.getTableRef();
     convertFrom(bb, expr);
-    final TableScan scan = (TableScan) bb.root;
 
-    final RelNode snapshotRel = relBuilder.push(scan).snapshot(period).build();
+    final RelNode snapshotRel = relBuilder.push(bb.root).snapshot(period).build();
 
     bb.setRoot(snapshotRel, false);
   }
@@ -5780,19 +5778,6 @@ public class SqlToRelConverter {
     /** Default configuration. */
     Config DEFAULT = configBuilder().build();
 
-    /** Returns the {@code convertTableAccess} option. Controls whether table
-     * access references are converted to physical rels immediately. The
-     * optimizer doesn't like leaf rels to have {@link Convention#NONE}.
-     * However, if we are doing further conversion passes (e.g.
-     * {@link RelStructuredTypeFlattener}), then we may need to defer
-     * conversion.
-     *
-     * @deprecated Table access references are always converted to
-     * logical relational expressions during sql-to-rel conversion.
-     * */
-    @Deprecated // to be removed before 1.23
-    boolean isConvertTableAccess();
-
     /** Returns the {@code decorrelationEnabled} option. Controls whether to
      * disable sub-query decorrelation when needed. e.g. if outer joins are not
      * supported. */
@@ -5859,11 +5844,6 @@ public class SqlToRelConverter {
       this.inSubQueryThreshold = config.getInSubQueryThreshold();
       this.relBuilderFactory = config.getRelBuilderFactory();
       this.hintStrategyTable = config.getHintStrategyTable();
-      return this;
-    }
-
-    @Deprecated // to be removed before 1.23
-    public ConfigBuilder withConvertTableAccess(boolean convertTableAccess) {
       return this;
     }
 

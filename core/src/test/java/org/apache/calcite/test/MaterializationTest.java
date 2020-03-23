@@ -91,10 +91,6 @@ public class MaterializationTest {
       CalciteAssert.checkResultContains(
           "EnumerableTableScan(table=[[hr, m0]])");
 
-  private static final Consumer<ResultSet> CONTAINS_LOCATIONS =
-      CalciteAssert.checkResultContains(
-          "EnumerableTableScan(table=[[hr, locations]])");
-
   private static final Ordering<Iterable<String>> CASE_INSENSITIVE_LIST_COMPARATOR =
       Ordering.from(String.CASE_INSENSITIVE_ORDER).lexicographical();
 
@@ -1212,7 +1208,7 @@ public class MaterializationTest {
                     SqlStdOperatorTable.AND,
                     i0_eq_0,
                     i1_eq_1)));
-    checkSatisfiable(e6, "AND(=($0, 0), OR(<>($0, 0), <>($1, 1)))");
+    checkSatisfiable(e6, "AND(=($0, 0), <>($1, 1))");
 
     // "$0 = 0 AND ($1 = 1 AND NOT ($0 = 0))" is not satisfiable.
     final RexNode e7 =
@@ -1587,7 +1583,7 @@ public class MaterializationTest {
         + "where \"deptno\" > 10\n"
         + "group by \"deptno\"";
     final String expected = "EnumerableAggregate(group=[{1}])\n"
-        + "  EnumerableCalc(expr#0..1=[{inputs}], expr#2=[10], expr#3=[<($t2, $t1)], "
+        + "  EnumerableCalc(expr#0..1=[{inputs}], expr#2=[10], expr#3=[>($t1, $t2)], "
         + "proj#0..1=[{exprs}], $condition=[$t3])\n"
         + "    EnumerableTableScan(table=[[hr, m0]])";
     sql(materialize, query).withResultContains(expected).ok();
@@ -1659,7 +1655,7 @@ public class MaterializationTest {
             + "from \"emps\" where \"deptno\" > 10 group by \"deptno\"")
         .withResultContains(
             "EnumerableAggregate(group=[{1}], S=[$SUM0($3)])\n"
-                + "  EnumerableCalc(expr#0..3=[{inputs}], expr#4=[10], expr#5=[<($t4, $t1)], "
+                + "  EnumerableCalc(expr#0..3=[{inputs}], expr#4=[10], expr#5=[>($t1, $t4)], "
                 + "proj#0..3=[{exprs}], $condition=[$t5])\n"
                 + "    EnumerableTableScan(table=[[hr, m0]])")
         .ok();
@@ -1928,7 +1924,7 @@ public class MaterializationTest {
         + "join \"emps\" using (\"deptno\") where \"emps\".\"empid\" > 15\n"
         + "group by \"depts\".\"deptno\"";
     final String expected = "EnumerableAggregate(group=[{0}])\n"
-        + "  EnumerableCalc(expr#0..1=[{inputs}], expr#2=[15], expr#3=[<($t2, $t1)], "
+        + "  EnumerableCalc(expr#0..1=[{inputs}], expr#2=[15], expr#3=[>($t1, $t2)], "
         + "proj#0..1=[{exprs}], $condition=[$t3])\n"
         + "    EnumerableTableScan(table=[[hr, m0]])";
     sql(materialize, query).withResultContains(expected).ok();
@@ -2278,7 +2274,7 @@ public class MaterializationTest {
         "select \"empid\" \"deptno\" from \"emps\"\n"
             + "join \"depts\" using (\"deptno\") where \"empid\" = 1")
         .withResultContains(
-            "EnumerableCalc(expr#0=[{inputs}], expr#1=[CAST($t0):INTEGER NOT NULL], expr#2=[1], "
+            "EnumerableCalc(expr#0=[{inputs}], expr#1=[1], expr#2=[CAST($t0):INTEGER NOT NULL], "
                 + "expr#3=[=($t1, $t2)], deptno=[$t0], $condition=[$t3])\n"
                 + "  EnumerableTableScan(table=[[hr, m0]])")
         .ok();
@@ -2291,7 +2287,7 @@ public class MaterializationTest {
             + "join \"depts\" using (\"deptno\") where \"empid\" > 1")
         .withResultContains(
             "EnumerableCalc(expr#0=[{inputs}], expr#1=[CAST($t0):JavaType(int) NOT NULL], "
-                + "expr#2=[1], expr#3=[>($t1, $t2)], EXPR$0=[$t1], $condition=[$t3])\n"
+                + "expr#2=[1], expr#3=[<($t2, $t1)], EXPR$0=[$t1], $condition=[$t3])\n"
                 + "  EnumerableTableScan(table=[[hr, m0]])")
         .ok();
   }
@@ -2303,7 +2299,7 @@ public class MaterializationTest {
             + "join \"depts\" using (\"deptno\") where \"empid\" = 1")
         .withResultContains(
             "EnumerableCalc(expr#0=[{inputs}], expr#1=[CAST($t0):JavaType(int) NOT NULL], "
-                + "expr#2=[CAST($t1):INTEGER NOT NULL], expr#3=[1], expr#4=[=($t2, $t3)], "
+                + "expr#2=[1], expr#3=[CAST($t1):INTEGER NOT NULL], expr#4=[=($t2, $t3)], "
                 + "EXPR$0=[$t1], $condition=[$t4])\n"
                 + "  EnumerableTableScan(table=[[hr, m0]])")
         .ok();
@@ -2515,6 +2511,36 @@ public class MaterializationTest {
         .ok();
   }
 
+  @Test public void testAggregateOnJoinKeys() {
+    sql("select \"deptno\", \"empid\", \"salary\" "
+            + "from \"emps\"\n"
+            + "group by \"deptno\", \"empid\", \"salary\"",
+        "select \"empid\", \"depts\".\"deptno\" "
+            + "from \"emps\"\n"
+            + "join \"depts\" on \"depts\".\"deptno\" = \"empid\" group by \"empid\", \"depts\".\"deptno\"")
+        .withResultContains(
+            "EnumerableCalc(expr#0=[{inputs}], empid=[$t0], empid0=[$t0])\n"
+                + "  EnumerableAggregate(group=[{1}])\n"
+                + "    EnumerableHashJoin(condition=[=($1, $3)], joinType=[inner])\n"
+                + "      EnumerableTableScan(table=[[hr, m0]])")
+        .ok();
+  }
+
+  @Test public void testAggregateOnJoinKeys2() {
+    sql("select \"deptno\", \"empid\", \"salary\", sum(1) "
+            + "from \"emps\"\n"
+            + "group by \"deptno\", \"empid\", \"salary\"",
+        "select sum(1) "
+            + "from \"emps\"\n"
+            + "join \"depts\" on \"depts\".\"deptno\" = \"empid\" group by \"empid\", \"depts\".\"deptno\"")
+        .withResultContains(
+            "EnumerableCalc(expr#0..1=[{inputs}], EXPR$0=[$t1])\n"
+                + "  EnumerableAggregate(group=[{1}], EXPR$0=[$SUM0($3)])\n"
+                + "    EnumerableHashJoin(condition=[=($1, $4)], joinType=[inner])\n"
+                + "      EnumerableTableScan(table=[[hr, m0]])")
+        .ok();
+  }
+
   @Test public void testViewMaterialization() {
     sql("select \"depts\".\"name\"\n"
             + "from \"emps\"\n"
@@ -2580,13 +2606,12 @@ public class MaterializationTest {
                 map.put("table", "locations");
                 String sql = "select distinct `deptno` as `empid`, '' as `name`\n"
                     + "from `emps`";
-                final String sql2 = sql.replaceAll("`", "\"");
+                final String sql2 = sql.replace("`", "\"");
                 map.put("sql", sql2);
                 return ImmutableList.of(map);
               })
           .query(q)
           .enableMaterializations(true)
-          .explainMatches("", CONTAINS_LOCATIONS)
           .sameResultWithMaterializationsDisabled();
     }
   }
@@ -2870,7 +2895,7 @@ public class MaterializationTest {
   }
 
   @Test public void testUnionOnCalcsToUnion() {
-    String mv = ""
+    final String mv = ""
         + "select \"deptno\", \"salary\"\n"
         + "from \"emps\"\n"
         + "where \"empid\" > 300\n"
@@ -2878,7 +2903,7 @@ public class MaterializationTest {
         + "select \"deptno\", \"salary\"\n"
         + "from \"emps\"\n"
         + "where \"empid\" < 100";
-    String query = ""
+    final String query = ""
         + "select \"deptno\", \"salary\" * 2\n"
         + "from \"emps\"\n"
         + "where \"empid\" > 300 and \"salary\" > 100\n"
@@ -2887,6 +2912,26 @@ public class MaterializationTest {
         + "from \"emps\"\n"
         + "where \"empid\" < 100 and \"salary\" > 100";
     sql(mv, query).ok();
+  }
+
+  @Test public void testIntersectOnCalcsToIntersect() {
+    final String mv = ""
+        + "select \"deptno\", \"salary\"\n"
+        + "from \"emps\"\n"
+        + "where \"empid\" > 300\n"
+        + "intersect all\n"
+        + "select \"deptno\", \"salary\"\n"
+        + "from \"emps\"\n"
+        + "where \"empid\" < 100";
+    final String query = ""
+        + "select \"deptno\", \"salary\" * 2\n"
+        + "from \"emps\"\n"
+        + "where \"empid\" > 300 and \"salary\" > 100\n"
+        + "intersect all\n"
+        + "select \"deptno\", \"salary\" * 2\n"
+        + "from \"emps\"\n"
+        + "where \"empid\" < 100 and \"salary\" > 100";
+    sql(mv, query).withOnlyBySubstitution(true).ok();
   }
 
   @Test public void testIntersectToIntersect0() {

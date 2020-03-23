@@ -1568,7 +1568,7 @@ public class SqlValidatorTest extends SqlValidatorTestCase {
   @Test public void testInvalidMemberFunction() {
     expr("myCol.^func()^")
         .fails("(?s).*No match found for function signature FUNC().*");
-    expr("myCol.mySubschema.^memberFunc()^")
+    expr("customer.mySubschema.^memberFunc()^")
         .fails("(?s).*No match found for function signature MEMBERFUNC().*");
   }
 
@@ -7829,6 +7829,16 @@ public class SqlValidatorTest extends SqlValidatorTestCase {
     sql("SELECT MAX(ename) FROM emp").ok();
     sql("SELECT MIN(5.5) FROM emp").ok();
     sql("SELECT MAX(5) FROM emp").ok();
+  }
+
+  @Test public void testSomeEveryAndIntersectionFunctions() {
+    sql("select some(sal = 100), every(sal > 0), intersection(multiset[1,2]) from emp").ok();
+    sql("select some(sal = 100), ^empno^ from emp")
+        .fails("Expression 'EMPNO' is not being grouped");
+    sql("select every(sal > 0), ^empno^ from emp")
+        .fails("Expression 'EMPNO' is not being grouped");
+    sql("select intersection(multiset[1]), ^empno^ from emp")
+        .fails("Expression 'EMPNO' is not being grouped");
   }
 
   @Test public void testAnyValueFunction() {

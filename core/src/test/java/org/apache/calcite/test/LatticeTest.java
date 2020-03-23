@@ -23,7 +23,12 @@ import org.apache.calcite.materialize.MaterializationService;
 import org.apache.calcite.plan.RelOptPlanner;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptUtil;
-import org.apache.calcite.rel.rules.AbstractMaterializedViewRule;
+import org.apache.calcite.rel.rules.materialize.MaterializedViewOnlyAggregateRule;
+import org.apache.calcite.rel.rules.materialize.MaterializedViewOnlyFilterRule;
+import org.apache.calcite.rel.rules.materialize.MaterializedViewOnlyJoinRule;
+import org.apache.calcite.rel.rules.materialize.MaterializedViewProjectAggregateRule;
+import org.apache.calcite.rel.rules.materialize.MaterializedViewProjectFilterRule;
+import org.apache.calcite.rel.rules.materialize.MaterializedViewProjectJoinRule;
 import org.apache.calcite.runtime.Hook;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.util.ImmutableBitSet;
@@ -502,12 +507,12 @@ public class LatticeTest {
   private void checkTileAlgorithm(String statisticProvider,
       String expectedExplain) {
     final RelOptRule[] rules = {
-        AbstractMaterializedViewRule.INSTANCE_PROJECT_FILTER,
-        AbstractMaterializedViewRule.INSTANCE_FILTER,
-        AbstractMaterializedViewRule.INSTANCE_PROJECT_JOIN,
-        AbstractMaterializedViewRule.INSTANCE_JOIN,
-        AbstractMaterializedViewRule.INSTANCE_PROJECT_AGGREGATE,
-        AbstractMaterializedViewRule.INSTANCE_AGGREGATE
+        MaterializedViewProjectFilterRule.INSTANCE,
+        MaterializedViewOnlyFilterRule.INSTANCE,
+        MaterializedViewProjectJoinRule.INSTANCE,
+        MaterializedViewOnlyJoinRule.INSTANCE,
+        MaterializedViewProjectAggregateRule.INSTANCE,
+        MaterializedViewOnlyAggregateRule.INSTANCE
     };
     MaterializationService.setThreadLocal();
     MaterializationService.instance().clear();
@@ -672,10 +677,10 @@ public class LatticeTest {
             + "join \"foodmart\".\"time_by_day\" using (\"time_id\")\n"
             + "group by \"the_year\"")
         .enableMaterializations(true)
-        .explainContains("EnumerableCalc(expr#0..1=[{inputs}], C=[$t1])\n"
-            + "  EnumerableAggregate(group=[{0}], C=[COUNT($0)])\n"
-            + "    EnumerableAggregate(group=[{0}])\n"
-            + "      EnumerableTableScan(table=[[adhoc, m{32, 36}]])")
+        .explainContains("EnumerableCalc(expr#0=[{inputs}], expr#1=[IS NOT NULL($t0)], "
+            + "expr#2=[1:BIGINT], expr#3=[0:BIGINT], expr#4=[CASE($t1, $t2, $t3)], C=[$t4])\n"
+            + "  EnumerableAggregate(group=[{0}])\n"
+            + "    EnumerableTableScan(table=[[adhoc, m{32, 36}]])")
         .returnsUnordered("C=1");
   }
 
@@ -923,11 +928,11 @@ public class LatticeTest {
         + "join \"time_by_day\" using (\"time_id\")\n";
     final String explain = "PLAN=JdbcToEnumerableConverter\n"
         + "  JdbcAggregate(group=[{}], EXPR$0=[COUNT()])\n"
-        + "    JdbcJoin(condition=[=($1, $0)], joinType=[inner])\n"
-        + "      JdbcProject(time_id=[$0])\n"
-        + "        JdbcTableScan(table=[[foodmart, time_by_day]])\n"
+        + "    JdbcJoin(condition=[=($0, $1)], joinType=[inner])\n"
         + "      JdbcProject(time_id=[$1])\n"
-        + "        JdbcTableScan(table=[[foodmart, sales_fact_1997]])\n";
+        + "        JdbcTableScan(table=[[foodmart, sales_fact_1997]])\n"
+        + "      JdbcProject(time_id=[$0])\n"
+        + "        JdbcTableScan(table=[[foodmart, time_by_day]])\n";
     CalciteAssert.model(model)
         .withDefaultSchema("foodmart")
         .query(sql)

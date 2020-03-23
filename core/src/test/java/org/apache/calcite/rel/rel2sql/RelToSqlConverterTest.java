@@ -1345,7 +1345,7 @@ public class RelToSqlConverterTest {
         + " 4 AS \"fo$ur\", 5 AS \"ignore\"\n"
         + "FROM \"foodmart\".\"days\") AS \"t\"\n"
         + "WHERE \"one\" < \"tWo\" AND \"THREE\" < \"fo$ur\"";
-    final String expectedOracle = expectedPostgresql.replaceAll(" AS ", " ");
+    final String expectedOracle = expectedPostgresql.replace(" AS ", " ");
     sql(query)
         .withBigQuery().ok(expectedBigQuery)
         .withMysql().ok(expectedMysql)
@@ -1710,6 +1710,22 @@ public class RelToSqlConverterTest {
     final String expected = "SELECT ROW_NUMBER() OVER (ORDER BY `hire_date` DESC)\n"
             + "FROM `foodmart`.`employee`";
     sql(query).dialect(MysqlSqlDialect.DEFAULT).ok(expected);
+  }
+
+  @Test public void testMySqlCastToVarcharWithLessThanMaxPrecision() {
+    final String query = "select cast(\"product_id\" as varchar(50)), \"product_id\" "
+        + "from \"product\" ";
+    final String expected = "SELECT CAST(`product_id` AS CHAR(50)), `product_id`\n"
+        + "FROM `foodmart`.`product`";
+    sql(query).withMysql().ok(expected);
+  }
+
+  @Test public void testMySqlCastToVarcharWithGreaterThanMaxPrecision() {
+    final String query = "select cast(\"product_id\" as varchar(500)), \"product_id\" "
+        + "from \"product\" ";
+    final String expected = "SELECT CAST(`product_id` AS CHAR(255)), `product_id`\n"
+        + "FROM `foodmart`.`product`";
+    sql(query).withMysql().ok(expected);
   }
 
   @Test public void testMySqlWithHighNullsSelectWithOrderByAscNullsLastAndNoEmulation() {

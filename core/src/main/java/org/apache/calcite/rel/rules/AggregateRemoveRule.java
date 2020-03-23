@@ -18,6 +18,7 @@ package org.apache.calcite.rel.rules;
 
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
+import org.apache.calcite.plan.SubstitutionRule;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.core.AggregateCall;
@@ -45,7 +46,7 @@ import java.util.Objects;
  * or all the aggregate functions are splittable,
  * and the underlying relational expression is already distinct.
  */
-public class AggregateRemoveRule extends RelOptRule {
+public class AggregateRemoveRule extends RelOptRule implements SubstitutionRule {
   public static final AggregateRemoveRule INSTANCE =
       new AggregateRemoveRule(LogicalAggregate.class,
           RelFactories.LOGICAL_BUILDER);

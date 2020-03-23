@@ -128,6 +128,7 @@ import org.apache.calcite.rel.rules.UnionToDistinctRule;
 import org.apache.calcite.rel.rules.ValuesReduceRule;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
+import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
@@ -906,6 +907,15 @@ public class RelOptRulesTest extends RelOptTestBase {
         .check();
   }
 
+  @Test public void testJoinProjectTransposeWindow() {
+    final String sql = "select *\n"
+        + "from dept a\n"
+        + "join (select rank() over (order by name) as r, 1 + 1 from dept) as b\n"
+        + "on a.name = b.r";
+    sql(sql)
+        .withRule(JoinProjectTransposeRule.BOTH_PROJECT)
+        .check();
+  }
 
   /**
    * Test case for
@@ -3335,7 +3345,7 @@ public class RelOptRulesTest extends RelOptTestBase {
     final String planAfter = NL + RelOptUtil.toString(output);
     final DiffRepository diffRepos = getDiffRepos();
     diffRepos.assertEquals("planBefore", "${planBefore}", planBefore);
-    // Cannot optimize away the join because it is not equi join.
+    // Plan should be scan("EMP") (i.e. join's left child)
     diffRepos.assertEquals("planAfter", "${planAfter}", planAfter);
   }
 
@@ -3469,6 +3479,51 @@ public class RelOptRulesTest extends RelOptTestBase {
     final String sql = "insert into sales.dept(deptno, name)\n"
         + "select empno, cast(job as varchar(128)) from sales.empnullables";
     sql(sql).with(program).check();
+  }
+
+  @Test public void testReduceCaseWhenWithCast() {
+    final RelBuilder relBuilder = RelBuilder.create(RelBuilderTest.config().build());
+    final RexBuilder rexBuilder = relBuilder.getRexBuilder();
+    final RelDataType type = rexBuilder.getTypeFactory().createSqlType(SqlTypeName.BIGINT);
+
+    RelNode left = relBuilder
+        .values(new String[]{"x", "y"}, 1, 2).build();
+    RexNode ref = rexBuilder.makeInputRef(left, 0);
+    RexNode literal1 = rexBuilder.makeLiteral(1, type, false);
+    RexNode literal2 = rexBuilder.makeLiteral(2, type, false);
+    RexNode literal3 = rexBuilder.makeLiteral(3, type, false);
+
+    // CASE WHEN x % 2 = 1 THEN x < 2
+    //      WHEN x % 3 = 2 THEN x < 1
+    //      ELSE x < 3
+    final RexNode caseRexNode = rexBuilder.makeCall(SqlStdOperatorTable.CASE,
+        rexBuilder.makeCall(SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeCall(SqlStdOperatorTable.MOD, ref, literal2), literal1),
+        rexBuilder.makeCall(SqlStdOperatorTable.LESS_THAN, ref, literal2),
+        rexBuilder.makeCall(SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeCall(SqlStdOperatorTable.MOD, ref, literal3), literal2),
+        rexBuilder.makeCall(SqlStdOperatorTable.LESS_THAN, ref, literal1),
+        rexBuilder.makeCall(SqlStdOperatorTable.LESS_THAN, ref, literal3));
+
+    final RexNode castNode = rexBuilder.makeCast(rexBuilder.getTypeFactory().
+        createTypeWithNullability(caseRexNode.getType(), true), caseRexNode);
+    final RelNode root = relBuilder
+        .push(left)
+        .project(castNode)
+        .build();
+
+    HepProgramBuilder builder = new HepProgramBuilder();
+    builder.addRuleClass(ReduceExpressionsRule.class);
+
+    HepPlanner hepPlanner = new HepPlanner(builder.build());
+    hepPlanner.addRule(ReduceExpressionsRule.PROJECT_INSTANCE);
+    hepPlanner.setRoot(root);
+
+    RelNode output = hepPlanner.findBestExp();
+    final String planAfter = NL + RelOptUtil.toString(output);
+    final DiffRepository diffRepos = getDiffRepos();
+    diffRepos.assertEquals("planAfter", "${planAfter}", planAfter);
+    SqlToRelTestBase.assertValid(output);
   }
 
   private void basePushAggThroughUnion() throws Exception {

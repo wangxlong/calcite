@@ -83,13 +83,6 @@ public class SqlToRelConverterTest extends SqlToRelTestBase {
         SqlToRelConverter.Config.DEFAULT, tester.getConformance());
   }
 
-  @Deprecated // to be removed before 1.23
-  protected final void check(
-      String sql,
-      String plan) {
-    sql(sql).convertsTo(plan);
-  }
-
   @Test public void testDotLiteralAfterNestedRow() {
     final String sql = "select ((1,2),(3,4,5)).\"EXPR$1\".\"EXPR$2\" from emp";
     sql(sql).ok();
@@ -1121,13 +1114,20 @@ public class SqlToRelConverterTest extends SqlToRelTestBase {
     sql("select * from dept, lateral table(ramp(deptno))").ok();
   }
 
-  @Test public void testSnapshotOnTemporalTable() {
+  @Test public void testSnapshotOnTemporalTable1() {
     final String sql = "select * from products_temporal "
         + "for system_time as of TIMESTAMP '2011-01-02 00:00:00'";
     sql(sql).ok();
   }
 
-  @Test public void testJoinTemporalTableOnSpecificTime() {
+  @Test public void testSnapshotOnTemporalTable2() {
+    // Test temporal table with virtual columns.
+    final String sql = "select * from VIRTUALCOLUMNS.VC_T1 "
+        + "for system_time as of TIMESTAMP '2011-01-02 00:00:00'";
+    sql(sql).with(getExtendedTester()).ok();
+  }
+
+  @Test public void testJoinTemporalTableOnSpecificTime1() {
     final String sql = "select stream *\n"
         + "from orders,\n"
         + "  products_temporal for system_time as of\n"
@@ -1135,12 +1135,30 @@ public class SqlToRelConverterTest extends SqlToRelTestBase {
     sql(sql).ok();
   }
 
-  @Test public void testJoinTemporalTableOnColumnReference() {
+  @Test public void testJoinTemporalTableOnSpecificTime2() {
+    // Test temporal table with virtual columns.
+    final String sql = "select stream *\n"
+        + "from orders,\n"
+        + "  VIRTUALCOLUMNS.VC_T1 for system_time as of\n"
+        + "    TIMESTAMP '2011-01-02 00:00:00'";
+    sql(sql).with(getExtendedTester()).ok();
+  }
+
+  @Test public void testJoinTemporalTableOnColumnReference1() {
     final String sql = "select stream *\n"
         + "from orders\n"
         + "join products_temporal for system_time as of orders.rowtime\n"
         + "on orders.productid = products_temporal.productid";
     sql(sql).ok();
+  }
+
+  @Test public void testJoinTemporalTableOnColumnReference2() {
+    // Test temporal table with virtual columns.
+    final String sql = "select stream *\n"
+        + "from orders\n"
+        + "join VIRTUALCOLUMNS.VC_T1 for system_time as of orders.rowtime\n"
+        + "on orders.productid = VIRTUALCOLUMNS.VC_T1.a";
+    sql(sql).with(getExtendedTester()).ok();
   }
 
   /**
@@ -1193,6 +1211,17 @@ public class SqlToRelConverterTest extends SqlToRelTestBase {
    * field</a>. */
   @Test public void testCollectionTableWithLateral3() {
     sql("select * from dept, lateral table(DEDUP(dept.deptno, dept.name))").ok();
+  }
+
+  /** Test case for
+   * <a href="https://issues.apache.org/jira/browse/CALCITE-3847">[CALCITE-3847]
+   * Decorrelation for join with lateral table outputs wrong plan if the join
+   * condition contains correlation variables</a>. */
+  @Test public void testJoinLateralTableWithConditionCorrelated() {
+    final String sql = "select deptno, r.num from dept join\n"
+        + " lateral table(ramp(dept.deptno)) as r(num)\n"
+        + " on deptno=num";
+    sql(sql).ok();
   }
 
   @Test public void testSample() {
@@ -3173,6 +3202,13 @@ public class SqlToRelConverterTest extends SqlToRelTestBase {
 
   @Test public void testAnyValueAggregateFunctionGroupBy() throws Exception {
     final String sql = "SELECT any_value(empno) as anyempno FROM emp AS e group by e.sal";
+    sql(sql).ok();
+  }
+
+  @Test public void testSomeAndEveryAggregateFunctions() throws Exception {
+    final String sql = "SELECT some(empno = 130) as someempnoexists,\n"
+        + " every(empno > 0) as everyempnogtzero\n"
+        + " FROM emp AS e group by e.sal";
     sql(sql).ok();
   }
 

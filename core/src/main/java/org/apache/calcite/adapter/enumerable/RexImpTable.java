@@ -50,6 +50,7 @@ import org.apache.calcite.sql.SqlBinaryOperator;
 import org.apache.calcite.sql.SqlJsonConstructorNullClause;
 import org.apache.calcite.sql.SqlMatchFunction;
 import org.apache.calcite.sql.SqlOperator;
+import org.apache.calcite.sql.SqlTypeConstructorFunction;
 import org.apache.calcite.sql.SqlWindowTableFunction;
 import org.apache.calcite.sql.fun.SqlJsonArrayAggAggFunction;
 import org.apache.calcite.sql.fun.SqlJsonObjectAggAggFunction;
@@ -96,6 +97,7 @@ import static org.apache.calcite.linq4j.tree.ExpressionType.OrElse;
 import static org.apache.calcite.linq4j.tree.ExpressionType.Subtract;
 import static org.apache.calcite.linq4j.tree.ExpressionType.UnaryPlus;
 import static org.apache.calcite.sql.fun.SqlLibraryOperators.CHR;
+import static org.apache.calcite.sql.fun.SqlLibraryOperators.COMPRESS;
 import static org.apache.calcite.sql.fun.SqlLibraryOperators.COSH;
 import static org.apache.calcite.sql.fun.SqlLibraryOperators.DAYNAME;
 import static org.apache.calcite.sql.fun.SqlLibraryOperators.DIFFERENCE;
@@ -118,8 +120,10 @@ import static org.apache.calcite.sql.fun.SqlLibraryOperators.REPEAT;
 import static org.apache.calcite.sql.fun.SqlLibraryOperators.REVERSE;
 import static org.apache.calcite.sql.fun.SqlLibraryOperators.RIGHT;
 import static org.apache.calcite.sql.fun.SqlLibraryOperators.SHA1;
+import static org.apache.calcite.sql.fun.SqlLibraryOperators.SINH;
 import static org.apache.calcite.sql.fun.SqlLibraryOperators.SOUNDEX;
 import static org.apache.calcite.sql.fun.SqlLibraryOperators.SPACE;
+import static org.apache.calcite.sql.fun.SqlLibraryOperators.STRCMP;
 import static org.apache.calcite.sql.fun.SqlLibraryOperators.TANH;
 import static org.apache.calcite.sql.fun.SqlLibraryOperators.TO_BASE64;
 import static org.apache.calcite.sql.fun.SqlLibraryOperators.TRANSLATE3;
@@ -166,6 +170,7 @@ import static org.apache.calcite.sql.fun.SqlStdOperatorTable.DIVIDE;
 import static org.apache.calcite.sql.fun.SqlStdOperatorTable.DIVIDE_INTEGER;
 import static org.apache.calcite.sql.fun.SqlStdOperatorTable.ELEMENT;
 import static org.apache.calcite.sql.fun.SqlStdOperatorTable.EQUALS;
+import static org.apache.calcite.sql.fun.SqlStdOperatorTable.EVERY;
 import static org.apache.calcite.sql.fun.SqlStdOperatorTable.EXP;
 import static org.apache.calcite.sql.fun.SqlStdOperatorTable.EXTRACT;
 import static org.apache.calcite.sql.fun.SqlStdOperatorTable.FIRST_VALUE;
@@ -176,6 +181,7 @@ import static org.apache.calcite.sql.fun.SqlStdOperatorTable.GREATER_THAN_OR_EQU
 import static org.apache.calcite.sql.fun.SqlStdOperatorTable.GROUPING;
 import static org.apache.calcite.sql.fun.SqlStdOperatorTable.GROUPING_ID;
 import static org.apache.calcite.sql.fun.SqlStdOperatorTable.INITCAP;
+import static org.apache.calcite.sql.fun.SqlStdOperatorTable.INTERSECTION;
 import static org.apache.calcite.sql.fun.SqlStdOperatorTable.IS_A_SET;
 import static org.apache.calcite.sql.fun.SqlStdOperatorTable.IS_EMPTY;
 import static org.apache.calcite.sql.fun.SqlStdOperatorTable.IS_FALSE;
@@ -262,6 +268,7 @@ import static org.apache.calcite.sql.fun.SqlStdOperatorTable.SIMILAR_TO;
 import static org.apache.calcite.sql.fun.SqlStdOperatorTable.SIN;
 import static org.apache.calcite.sql.fun.SqlStdOperatorTable.SINGLE_VALUE;
 import static org.apache.calcite.sql.fun.SqlStdOperatorTable.SLICE;
+import static org.apache.calcite.sql.fun.SqlStdOperatorTable.SOME;
 import static org.apache.calcite.sql.fun.SqlStdOperatorTable.STRUCT_ACCESS;
 import static org.apache.calcite.sql.fun.SqlStdOperatorTable.SUBMULTISET_OF;
 import static org.apache.calcite.sql.fun.SqlStdOperatorTable.SUBSTRING;
@@ -330,6 +337,7 @@ public class RexImpTable {
     defineMethod(ASCII, BuiltInMethod.ASCII.method, NullPolicy.STRICT);
     defineMethod(REPEAT, BuiltInMethod.REPEAT.method, NullPolicy.STRICT);
     defineMethod(SPACE, BuiltInMethod.SPACE.method, NullPolicy.STRICT);
+    defineMethod(STRCMP, BuiltInMethod.STRCMP.method, NullPolicy.STRICT);
     defineMethod(SOUNDEX, BuiltInMethod.SOUNDEX.method, NullPolicy.STRICT);
     defineMethod(DIFFERENCE, BuiltInMethod.DIFFERENCE.method, NullPolicy.STRICT);
     defineMethod(REVERSE, BuiltInMethod.REVERSE.method, NullPolicy.STRICT);
@@ -408,6 +416,7 @@ public class RexImpTable {
     defineMethod(ROUND, "sround", NullPolicy.STRICT);
     defineMethod(SIGN, "sign", NullPolicy.STRICT);
     defineMethod(SIN, "sin", NullPolicy.STRICT);
+    defineMethod(SINH, "sinh", NullPolicy.STRICT);
     defineMethod(TAN, "tan", NullPolicy.STRICT);
     defineMethod(TANH, "tanh", NullPolicy.STRICT);
     defineMethod(TRUNCATE, "struncate", NullPolicy.STRICT);
@@ -540,6 +549,9 @@ public class RexImpTable {
     defineMethod(CURRENT_VALUE, BuiltInMethod.SEQUENCE_CURRENT_VALUE.method, NullPolicy.STRICT);
     defineMethod(NEXT_VALUE, BuiltInMethod.SEQUENCE_NEXT_VALUE.method, NullPolicy.STRICT);
 
+    // Compression Operators
+    defineMethod(COMPRESS, BuiltInMethod.COMPRESS.method, NullPolicy.ARG0);
+
     // Xml Operators
     defineMethod(EXTRACT_VALUE, BuiltInMethod.EXTRACT_VALUE.method, NullPolicy.ARG0);
     defineMethod(XML_TRANSFORM, BuiltInMethod.XML_TRANSFORM.method, NullPolicy.ARG0);
@@ -621,6 +633,8 @@ public class RexImpTable {
     aggMap.put(MIN, minMax);
     aggMap.put(MAX, minMax);
     aggMap.put(ANY_VALUE, minMax);
+    aggMap.put(SOME, minMax);
+    aggMap.put(EVERY, minMax);
     final Supplier<BitOpImplementor> bitop = constructorSupplier(BitOpImplementor.class);
     aggMap.put(BIT_AND, bitop);
     aggMap.put(BIT_OR, bitop);
@@ -629,6 +643,7 @@ public class RexImpTable {
     aggMap.put(COLLECT, constructorSupplier(CollectImplementor.class));
     aggMap.put(LISTAGG, constructorSupplier(ListaggImplementor.class));
     aggMap.put(FUSION, constructorSupplier(FusionImplementor.class));
+    aggMap.put(INTERSECTION, constructorSupplier(IntersectionImplementor.class));
     final Supplier<GroupingImplementor> grouping =
         constructorSupplier(GroupingImplementor.class);
     aggMap.put(GROUPING, grouping);
@@ -902,6 +917,8 @@ public class RexImpTable {
             + " must implement ImplementableFunction");
       }
       return ((ImplementableFunction) udf).getImplementor();
+    } else if (operator instanceof SqlTypeConstructorFunction) {
+      return map.get(SqlStdOperatorTable.ROW);
     }
     return map.get(operator);
   }
@@ -1537,6 +1554,41 @@ public class RexImpTable {
               Expressions.call(BuiltInMethod.STRING_CONCAT.method, arg1, arg0)));
 
       add.currentBlock().add(Expressions.statement(Expressions.assign(accValue, result)));
+    }
+  }
+
+  /** Implementor for the {@code INTERSECTION} aggregate function. */
+  static class IntersectionImplementor extends StrictAggImplementor {
+    @Override protected void implementNotNullReset(AggContext info, AggResetContext reset) {
+      reset.currentBlock().add(
+          Expressions.statement(
+              Expressions.assign(reset.accumulator().get(0), Expressions.constant(null))));
+    }
+
+    @Override public void implementNotNullAdd(AggContext info, AggAddContext add) {
+      BlockBuilder accumulatorIsNull = new BlockBuilder();
+      accumulatorIsNull.add(
+          Expressions.statement(
+              Expressions.assign(add.accumulator().get(0), Expressions.new_(ArrayList.class))));
+      accumulatorIsNull.add(
+          Expressions.statement(
+              Expressions.call(add.accumulator().get(0),
+                  BuiltInMethod.COLLECTION_ADDALL.method, add.arguments().get(0))));
+
+      BlockBuilder accumulatorNotNull = new BlockBuilder();
+      accumulatorNotNull.add(
+          Expressions.statement(
+              Expressions.call(add.accumulator().get(0),
+                  BuiltInMethod.COLLECTION_RETAIN_ALL.method,
+                  add.arguments().get(0))
+          )
+      );
+
+      add.currentBlock().add(
+          Expressions.ifThenElse(
+              Expressions.equal(add.accumulator().get(0), Expressions.constant(null)),
+              accumulatorIsNull.toBlock(),
+              accumulatorNotNull.toBlock()));
     }
   }
 
@@ -2201,6 +2253,7 @@ public class RexImpTable {
       case 2:
         final Type type;
         final Method floorMethod;
+        final boolean preFloor;
         Expression operand = translatedOperands.get(0);
         switch (call.getType().getSqlTypeName()) {
         case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
@@ -2212,19 +2265,25 @@ public class RexImpTable {
         case TIMESTAMP:
           type = long.class;
           floorMethod = timestampMethod;
+          preFloor = true;
           break;
         default:
           type = int.class;
           floorMethod = dateMethod;
+          preFloor = false;
         }
         final ConstantExpression tur =
             (ConstantExpression) translatedOperands.get(1);
         final TimeUnitRange timeUnitRange = (TimeUnitRange) tur.value;
         switch (timeUnitRange) {
         case YEAR:
+        case QUARTER:
         case MONTH:
-          return Expressions.call(floorMethod, tur,
-              call(operand, type, TimeUnit.DAY));
+        case WEEK:
+        case DAY:
+          final Expression operand1 =
+              preFloor ? call(operand, type, TimeUnit.DAY) : operand;
+          return Expressions.call(floorMethod, tur, operand1);
         case NANOSECOND:
         default:
           return call(operand, type, timeUnitRange.startUnit);
